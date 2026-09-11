@@ -1,0 +1,28 @@
+# Fortran Package Manager manifest.  https://fpm.fortran-lang.org
+#
+#   fpm build
+#   fpm run -- 14 --plot
+#   fpm test
+#
+# The directory layout (src/, app/, test/) follows fpm conventions, so fpm
+# discovers the library, the driver, and the tests automatically.
+name = "wilberforce"
+version = "2.0.0"
+license = "MIT"
+author = "José Antonio Martínez Torres, Aarón Marcelo Sandoval Vázquez, Diego Jorge Gómez"
+maintainer = "antonio.martineztrs@uanl.edu.mx"
+copyright = "Copyright 2024-2026, the authors"
+description = "Numerical simulation of the Wilberforce pendulum with a 4th-order Runge-Kutta integrator in quadruple precision, plus the closed-form normal-mode solution and an energy-conservation diagnostic."
+
+[build]
+auto-executables = true
+auto-tests = true
+auto-examples = false
+
+[install]
+library = false
+
+[fortran]
+implicit-typing = false
+implicit-external = false
+source-form = "free"

@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Computational Simulation of the Wilberforce Pendulum"
+abstract: >-
+  A modular Fortran 2008 package that integrates the coupled longitudinal-
+  torsional equations of motion of a Wilberforce pendulum with a fourth-order
+  Runge-Kutta scheme in quadruple precision, compares against the closed-form
+  normal-mode solution, tracks energy conservation, and includes an interactive
+  3D simulator and a strategy to measure the coupling constant.
+type: software
+version: "2.0.0"
+license: MIT
+authors:
+  - family-names: "Martínez Torres"
+    given-names: "José Antonio"
+    affiliation: "Facultad de Ciencias Físico Matemáticas, UANL"
+    email: "antonio.martineztrs@uanl.edu.mx"
+  - family-names: "Sandoval Vázquez"
+    given-names: "Aarón Marcelo"
+    affiliation: "Facultad de Ciencias Físico Matemáticas, UANL"
+    email: "marcelo.sandovalvzqz@uanl.edu.mx"
+  - family-names: "Jorge Gómez"
+    given-names: "Diego"
+    affiliation: "Facultad de Ciencias Físico Matemáticas, UANL"
+    email: "diego.jorgegmz@uanl.edu.mx"
+keywords:
+  - "Wilberforce pendulum"
+  - "coupled oscillators"
+  - "Runge-Kutta"
+  - "normal modes"
+  - "computational physics"
+  - "Fortran"

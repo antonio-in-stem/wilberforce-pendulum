@@ -1,0 +1,57 @@
+# Build artefacts
+build/
+*.o
+*.mod
+*.smod
+*.exe
+*.out
+a.out
+
+# fpm
+/build/
+
+# Generated simulation output
+generated/
+analysis/figures/*.png
+analysis/figures/*.pdf
+!analysis/figures/.gitkeep
+
+# LaTeX
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.bbl
+paper/*.blg
+paper/*.toc
+paper/*.synctex.gz
+paper/*.fls
+paper/*.fdb_latexmk
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Scratch
+scratch_*.txt
+folder.bat
+
+# Independent CMake build directories
+build-cmake/
+cmake-build-*/
+
+# Self-contained HTML generated from preserved templates and shared model
+/simulator3d/index.html
+/simulator3d/index_lite.html
+
+# Local preview / visual testing output
+.local-preview/
+playwright-report/

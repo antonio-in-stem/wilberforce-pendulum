@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wilberforce Pendulum — Interactive 3D Simulator</title>
+<style>
+  :root{
+    --bg:#0b0e17; --panel:#141a29; --panel2:#1b2338; --ink:#e8ecf6;
+    --muted:#93a0bf; --line:#2a344e; --long:#4f9bff; --ang:#b57cff;
+    --coup:#ffb44a; --total:#33d6a6; --accent:#ff5c8a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+    background:radial-gradient(1200px 800px at 30% 0%,#141c30 0%,var(--bg) 60%);color:var(--ink)}
+  a{color:var(--long)}
+  #app{display:grid;grid-template-columns:1fr 340px;grid-template-rows:1fr 210px;
+    grid-template-areas:"stage panel" "plots panel";height:100vh;gap:10px;padding:10px}
+  #stage{grid-area:stage;position:relative;border-radius:14px;overflow:hidden;
+    background:linear-gradient(180deg,#0f1626,#0a0d16);border:1px solid var(--line)}
+  #plots{grid-area:plots;display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:10px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px}
+  #panel{grid-area:panel;overflow-y:auto;padding:14px;background:var(--panel);
+    border:1px solid var(--line);border-radius:14px}
+  h1{font-size:16px;margin:0 0 2px}
+  .sub{color:var(--muted);font-size:11.5px;margin:0 0 12px;line-height:1.5}
+  canvas{display:block;width:100%;height:100%}
+  .plotwrap{position:relative}
+  .plotwrap b{position:absolute;top:6px;left:10px;font-size:11px;color:var(--muted);
+    font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:9px 0}
+  label{font-size:12.5px;color:var(--ink)}
+  .val{font-variant-numeric:tabular-nums;color:var(--long);font-size:12px;min-width:64px;text-align:right}
+  input[type=range]{width:100%;accent-color:var(--long);height:4px}
+  .ctl{margin:6px 0 12px}
+  select{width:100%;padding:8px;border-radius:9px;background:var(--panel2);color:var(--ink);
+    border:1px solid var(--line);font-size:13px}
+  .btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin:10px 0}
+  button{padding:9px 6px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);
+    color:var(--ink);font-size:13px;cursor:pointer;transition:.15s}
+  button:hover{background:#26314e;border-color:#3f4b6b}
+  button.primary{background:linear-gradient(180deg,#2f6bd6,#245bb8);border-color:#3f7be0}
+  .divider{height:1px;background:var(--line);margin:14px 0}
+  .stat{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--muted)}
+  .stat span{color:var(--ink);font-variant-numeric:tabular-nums}
+  .hint{position:absolute;bottom:10px;left:12px;font-size:11px;color:var(--muted);
+    background:rgba(10,14,24,.6);padding:5px 9px;border-radius:7px;pointer-events:none}
+  .legend{display:flex;gap:12px;font-size:11px;color:var(--muted);position:absolute;top:8px;right:12px}
+  .legend i{display:inline-block;width:10px;height:3px;border-radius:2px;vertical-align:middle;margin-right:4px}
+  .badge{display:inline-block;font-size:10.5px;color:var(--muted);border:1px solid var(--line);
+    border-radius:6px;padding:1px 6px;margin-left:6px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="scene"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--long)"></i>z (bob)</span>
+      <span><i style="background:var(--ang)"></i>θ (twist)</span>
+    </div>
+    <div class="hint">drag to orbit · scroll to zoom</div>
+  </div>
+
+  <div id="plots">
+    <div class="card plotwrap"><b>z(t) &amp; θ(t)</b><canvas id="pTime"></canvas></div>
+    <div class="card plotwrap"><b>phase θ–z</b><canvas id="pPhase"></canvas></div>
+    <div class="card plotwrap"><b>energy</b><canvas id="pEnergy"></canvas></div>
+  </div>
+
+  <div id="panel">
+    <h1>Wilberforce Pendulum <span class="badge">RK4 · live</span></h1>
+<p>Standalone interactive simulator.</p>
+<p id="model-error" role="status"></p>
+    <p class="sub">A mass on a helical spring coupling vertical bobbing (z) and
+       axial twisting (θ). At resonance k=mδ/I the two modes trade energy — the beat.</p>
+
+    <div class="ctl">
+      <label>Preset</label>
+      <select id="preset"></select>
+    </div>
+
+    <div class="btns">
+      <button id="play" class="primary">Pause</button>
+      <button id="reset">Reset</button>
+      <button id="view">View</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="row"><label>δ &nbsp;torsional</label><span class="val" id="vdelta"></span></div>
+    <input type="range" id="delta" min="0.05" max="8" step="0.01">
+    <div class="row"><label>ε &nbsp;coupling</label><span class="val" id="veps"></span></div>
+    <input type="range" id="eps" min="0.001" max="1.8" step="0.001">
+    <div class="row"><label>m &nbsp;mass</label><span class="val" id="vm"></span></div>
+    <input type="range" id="m" min="0.05" max="10" step="0.01">
+    <div class="row"><label>I &nbsp;inertia</label><span class="val" id="vI"></span></div>
+    <input type="range" id="I" min="0.01" max="1" step="0.001">
+
+    <div class="divider"></div>
+
+    <div class="row"><label>z₀ initial drop</label><span class="val" id="vz0"></span></div>
+    <input type="range" id="z0" min="-1" max="1" step="0.01">
+    <div class="row"><label>θ₀ initial twist</label><span class="val" id="vth0"></span></div>
+    <input type="range" id="th0" min="-6.5" max="6.5" step="0.01">
+    <div class="row"><label>speed ×</label><span class="val" id="vspeed"></span></div>
+    <input type="range" id="speed" min="0.05" max="3" step="0.05">
+
+    <div class="divider"></div>
+    <div class="stat">ω₀ = √(δ/I)<span id="sw0"></span></div>
+    <div class="stat">ω₁ (mode 1)<span id="sw1"></span></div>
+    <div class="stat">ω₂ (mode 2)<span id="sw2"></span></div>
+    <div class="stat">T<sub>beat</sub><span id="stb"></span></div>
+    <div class="stat">k = mδ/I<span id="sk"></span></div>
+    <div class="divider"></div>
+    <div class="stat">t<span id="st"></span></div>
+    <div class="stat">E total (drift)<span id="sE"></span></div>
+    <p class="sub" style="margin-top:12px">Periodicity trick: set θ₀ = z₀√(m/I) to kill
+       one mode and make the motion purely periodic.</p>
+    <button id="periodic" style="width:100%">Apply θ₀ = z₀√(m/I)</button>
+  </div>
+</div>
+
+<!--INLINE:model-->
+<!--INLINE:presets-->
+<script>
+"use strict";
+/* ============================================================================
+   Wilberforce pendulum — self-contained interactive 3D simulator.
+   No external libraries: physics (RK4) and a minimal 3D projector are inline.
+   ========================================================================== */
+
+// ---- presets (mirror src/wilberforce_presets.f90) --------------------------
+const PRESETS = WilberforcePresets.map(p => ({...p,n:`Set ${p.id} · ${p.name}`,th0:p.theta0}));
+
+// ---- model -----------------------------------------------------------------
+const P = {delta:1.6, eps:0.075, m:0.07, I:0.5};
+let z0=1.0, th0=0.0, speed=1.0;
+let S = {z:0, v:0, th:0, om:0, t:0};   // state
+let E0 = 0, running = true;
+const hist = {t:[], z:[], th:[], E:[]};
+const HMAX = 1400;
+
+const kOf = () => P.m*P.delta/P.I;
+const w0 = () => Wilberforce.normalModes(P).natural;
+const w1 = () => Wilberforce.normalModes(P).plus;
+const w2 = () => Wilberforce.normalModes(P).minus;
+const Tbeat = () => P.eps === 0 ? Infinity : 2*Math.PI/(w1()-w2());
+let accumulatedTime = 0;
+function rk4(s,h){
+  const u=Wilberforce.rk4Step(P,[s.z,s.v,s.th,s.om],h);
+  return {z:u[0],v:u[1],th:u[2],om:u[3],t:s.t+h};
+}
+function energy(s){
+  const e=Wilberforce.energyOf(P,[s.z,s.v,s.th,s.om]);
+  return {Ez:e.verticalEnergy,Et:e.twistingEnergy,Ec:e.couplingEnergy,tot:e.totalEnergy};
+}
+function reset(){
+  accumulatedTime=0;
+  S={z:z0,v:0,th:th0,om:0,t:0}; E0=energy(S).tot;
+  hist.t.length=hist.z.length=hist.th.length=hist.E.length=0;
+}
+
+// ---- 3D projector ----------------------------------------------------------
+const cam={az:0.6, el:0.35, dist:9, zoom:1};
+function rot(p){
+  const ca=Math.cos(cam.az), sa=Math.sin(cam.az);
+  let x=p.x*ca - p.z*sa, z=p.x*sa + p.z*ca, y=p.y;
+  const ce=Math.cos(cam.el), se=Math.sin(cam.el);
+  let y2=y*ce - z*se, z2=y*se + z*ce;
+  return {x:x, y:y2, z:z2};
+}
+let SC={cx:0,cy:0,s:60};
+function proj(p){
+  const r=rot(p); const f=cam.dist/(cam.dist - r.z*0.13);
+  return {X:SC.cx + r.x*f*SC.s*cam.zoom, Y:SC.cy - r.y*f*SC.s*cam.zoom, z:r.z, f};
+}
+
+// ---- scene geometry (world units) ------------------------------------------
+let VW=800, VH=440;                       // logical (CSS-px) canvas size
+const CEIL_Y=2.9, BOB_REST=-0.2, FLOOR=-2.7, VZ=1.3;
+function zAmp(){ let a=Math.abs(z0); for(const zz of hist.z) if(Math.abs(zz)>a) a=Math.abs(zz);
+  return Math.max(a,0.02); }
+function drop(){ return Math.max(-VZ,Math.min(VZ,(S.z/zAmp())*VZ)); }
+
+const scene=document.getElementById('scene'), sctx=scene.getContext('2d');
+function drawScene(){
+  const w=VW, h=VH;
+  SC.cx=w*0.5; SC.cy=h*0.53; SC.s=Math.min(0.15*h, 0.17*w);
+  // background painted into the canvas (so it reads well and exports cleanly)
+  const bg=sctx.createLinearGradient(0,0,0,h);
+  bg.addColorStop(0,"#111a2c"); bg.addColorStop(1,"#0a0d16");
+  sctx.fillStyle=bg; sctx.fillRect(0,0,w,h);
+
+  // floor grid
+  sctx.lineWidth=1;
+  for(let g=-3;g<=3;g++){
+    sctx.strokeStyle="rgba(90,120,170,0.14)";
+    line(proj({x:g,y:FLOOR,z:-3}), proj({x:g,y:FLOOR,z:3}));
+    line(proj({x:-3,y:FLOOR,z:g}), proj({x:3,y:FLOOR,z:g}));
+  }
+
+  const d=drop(), bobY=BOB_REST - d, th=S.th, bobTop=bobY+0.62;
+
+  // ceiling plate
+  const cpts=[{x:-1.4,y:CEIL_Y,z:-1.4},{x:1.4,y:CEIL_Y,z:-1.4},
+              {x:1.4,y:CEIL_Y,z:1.4},{x:-1.4,y:CEIL_Y,z:1.4}].map(proj);
+  sctx.fillStyle="rgba(70,74,92,0.75)"; sctx.strokeStyle="#6b7492"; sctx.lineWidth=1.5;
+  poly(cpts,true);
+  // mount stub
+  sctx.strokeStyle="#6b7492"; sctx.lineWidth=3;
+  line(proj({x:0,y:CEIL_Y,z:0}), proj({x:0,y:CEIL_Y-0.12,z:0}));
+
+  // helical spring (stretches with z, winds slightly with theta)
+  const coils=10, seg=coils*24, rS=0.5;
+  const pts=[];
+  for(let i=0;i<=seg;i++){
+    const u=i/seg, ang=u*coils*2*Math.PI + th*0.4, y=CEIL_Y-0.12 - u*((CEIL_Y-0.12)-bobTop);
+    pts.push(proj({x:rS*Math.cos(ang), y:y, z:rS*Math.sin(ang)}));
+  }
+  for(let i=0;i<pts.length-1;i++){
+    const c=Math.max(0,Math.min(1,(pts[i].z+1.5)/3));
+    sctx.strokeStyle=`rgba(${70+70*c|0},${150+70*c|0},255,${0.5+0.45*c})`;
+    sctx.lineWidth=(2.0+1.4*c); line(pts[i],pts[i+1]);
+  }
+
+  // rod + slider masses BEHIND the bob first (painter order via depth of ends)
+  const rodLen=1.75;
+  const ends=[{x:rodLen*Math.cos(th),y:bobY,z:rodLen*Math.sin(th)},
+              {x:-rodLen*Math.cos(th),y:bobY,z:-rodLen*Math.sin(th)}]
+              .map(e=>({e,p:proj(e)})).sort((a,b)=>a.p.z-b.p.z);
+  sctx.strokeStyle="#59617e"; sctx.lineWidth=3.4;
+  line(ends[0].p, proj({x:0,y:bobY,z:0}));
+  drawSlider(ends[0].p);                       // far slider
+  drawCylinder(bobY, th);                       // bob
+  sctx.strokeStyle="#6b7492"; sctx.lineWidth=3.4;
+  line(proj({x:0,y:bobY,z:0}), ends[1].p);
+  drawSlider(ends[1].p);                         // near slider
+}
+function drawSlider(c){
+  const sz=15*c.f;
+  sctx.fillStyle="#b57cff"; sctx.strokeStyle="#2a1a4a"; sctx.lineWidth=1.6;
+  sctx.beginPath(); sctx.rect(c.X-sz/2, c.Y-sz/2, sz, sz); sctx.fill(); sctx.stroke();
+}
+function drawCylinder(cy, th){
+  const R=0.74, hH=0.62, N=48;
+  const top=[],bot=[];
+  for(let i=0;i<=N;i++){
+    const a=i/N*2*Math.PI + th;
+    top.push(proj({x:R*Math.cos(a), y:cy+hH, z:R*Math.sin(a)}));
+    bot.push(proj({x:R*Math.cos(a), y:cy-hH, z:R*Math.sin(a)}));
+  }
+  // drum wall (silhouette of top rim + reversed bottom rim), opaque
+  sctx.beginPath();
+  top.forEach((p,i)=>i?sctx.lineTo(p.X,p.Y):sctx.moveTo(p.X,p.Y));
+  for(let i=bot.length-1;i>=0;i--) sctx.lineTo(bot[i].X,bot[i].Y);
+  sctx.closePath();
+  const g=sctx.createLinearGradient(SC.cx-90,0,SC.cx+90,0);
+  g.addColorStop(0,"rgba(88,92,124,1)"); g.addColorStop(.42,"rgba(180,184,212,1)");
+  g.addColorStop(.62,"rgba(150,154,186,1)"); g.addColorStop(1,"rgba(74,78,108,1)");
+  sctx.fillStyle=g; sctx.fill();
+  // bottom rim (front edge only, faint)
+  sctx.strokeStyle="#6f7396"; sctx.lineWidth=1.6; poly(bot,false);
+  // top cap (visible lid), light
+  sctx.beginPath(); top.forEach((p,i)=>i?sctx.lineTo(p.X,p.Y):sctx.moveTo(p.X,p.Y));
+  sctx.closePath(); sctx.fillStyle="rgba(210,213,236,1)"; sctx.fill();
+  sctx.strokeStyle="#e6e8f6"; sctx.lineWidth=2; poly(top,false);
+  // reference stripe (shows the twist)
+  sctx.strokeStyle="#ff5c8a"; sctx.lineWidth=3.6;
+  line(proj({x:R*Math.cos(th),y:cy+hH,z:R*Math.sin(th)}),
+       proj({x:R*Math.cos(th),y:cy-hH,z:R*Math.sin(th)}));
+}
+function line(a,b){sctx.beginPath();sctx.moveTo(a.X,a.Y);sctx.lineTo(b.X,b.Y);sctx.stroke();}
+function poly(ps,fill){sctx.beginPath();ps.forEach((p,i)=>i?sctx.lineTo(p.X,p.Y):sctx.moveTo(p.X,p.Y));
+  if(fill){sctx.closePath();sctx.fill();} sctx.stroke();}
+
+// ---- 2D plots --------------------------------------------------------------
+function setupCanvas(cv){
+  const r=cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+  cv.width=r.width*dpr; cv.height=r.height*dpr;
+  const c=cv.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0); return c;
+}
+const pTime=document.getElementById('pTime'), pPhase=document.getElementById('pPhase'),
+      pEnergy=document.getElementById('pEnergy');
+let ctxT,ctxP,ctxE;
+function grid(c,w,h){c.fillStyle="#0f1626";c.fillRect(0,0,w,h);
+  c.strokeStyle="rgba(90,110,150,0.12)";c.lineWidth=1;
+  for(let i=1;i<6;i++){c.beginPath();c.moveTo(0,h*i/6);c.lineTo(w,h*i/6);c.stroke();}}
+function drawPlots(){
+  // time series
+  let cv=pTime, c=ctxT, w=cv.clientWidth, h=cv.clientHeight; grid(c,w,h);
+  const N=hist.t.length; if(N>1){
+    const zmax=Math.max(1e-9,...hist.z.map(Math.abs));
+    const tmax=Math.max(1e-9,...hist.th.map(Math.abs));
+    plotSeries(c,w,h,hist.z,zmax,"#4f9bff");
+    plotSeries(c,w,h,hist.th,tmax,"#b57cff");
+  }
+  // phase
+  cv=pPhase; c=ctxP; w=cv.clientWidth; h=cv.clientHeight; grid(c,w,h);
+  if(N>1){
+    const zmax=Math.max(1e-9,...hist.z.map(Math.abs)), tmax=Math.max(1e-9,...hist.th.map(Math.abs));
+    c.strokeStyle="#33d6a6"; c.lineWidth=1.4; c.beginPath();
+    for(let i=0;i<N;i++){const X=w/2+hist.th[i]/tmax*w*0.42, Y=h/2-hist.z[i]/zmax*h*0.42;
+      i?c.lineTo(X,Y):c.moveTo(X,Y);} c.stroke();
+    const X=w/2+hist.th[N-1]/tmax*w*0.42, Y=h/2-hist.z[N-1]/zmax*h*0.42;
+    c.fillStyle="#ff5c8a"; c.beginPath(); c.arc(X,Y,3.5,0,7); c.fill();
+  }
+  // energy bars
+  cv=pEnergy; c=ctxE; w=cv.clientWidth; h=cv.clientHeight; grid(c,w,h);
+  const e=energy(S); const tot=Math.max(1e-12,Math.abs(E0));
+  const bars=[["Ez",e.Ez,"#4f9bff"],["Eθ",e.Et,"#b57cff"],["Ec",e.Ec,"#ffb44a"],["E",e.tot,"#33d6a6"]];
+  const bw=w/(bars.length*1.6);
+  bars.forEach((b,i)=>{
+    const x=w*0.08 + i*(w*0.84/bars.length);
+    const val=b[1]/tot; const bh=Math.max(-h*0.42,Math.min(h*0.42,val*h*0.42));
+    c.fillStyle=b[2]; c.fillRect(x, h*0.55-Math.max(bh,0), bw, Math.abs(bh));
+    c.fillStyle="#93a0bf"; c.font="10px sans-serif"; c.textAlign="center";
+    c.fillText(b[0], x+bw/2, h*0.72);
+  });
+  c.strokeStyle="rgba(150,170,210,0.25)"; c.beginPath();c.moveTo(0,h*0.55);c.lineTo(w,h*0.55);c.stroke();
+}
+function plotSeries(c,w,h,arr,scale,col){
+  c.strokeStyle=col; c.lineWidth=1.5; c.beginPath();
+  const N=arr.length;
+  for(let i=0;i<N;i++){const X=i/(HMAX-1)*w, Y=h/2 - arr[i]/scale*h*0.42; i?c.lineTo(X,Y):c.moveTo(X,Y);}
+  c.stroke();
+}
+
+// ---- UI --------------------------------------------------------------------
+const $=id=>document.getElementById(id);
+function fmt(x){ if(x===Infinity)return "∞"; const a=Math.abs(x);
+  if(a!==0&&(a<1e-3||a>=1e4))return x.toExponential(2); return x.toFixed(a<1?4:3);}
+function syncLabels(){
+  $("vdelta").textContent=fmt(P.delta); $("veps").textContent=fmt(P.eps);
+  $("vm").textContent=fmt(P.m); $("vI").textContent=fmt(P.I);
+  $("vz0").textContent=fmt(z0); $("vth0").textContent=fmt(th0); $("vspeed").textContent=speed.toFixed(2);
+  $("sw0").textContent=fmt(w0()); $("sw1").textContent=fmt(w1()); $("sw2").textContent=fmt(w2());
+  $("stb").textContent=fmt(Tbeat())+" s"; $("sk").textContent=fmt(kOf());
+}
+function pushSliders(){
+  const values={...P,z0,th0,speed};
+  for(const id of ["delta","eps","m","I","z0","th0","speed"]){
+    const el=$(id),value=values[id];
+    // HTML range constraints must not silently rewrite a scientific preset.
+    el.min=Math.min(Number(el.min),value);el.max=Math.max(Number(el.max),value);
+    el.step="any";el.value=String(value);
+  }
+}
+function loadPreset(i){
+  const p=PRESETS[i]; if(!p)throw new RangeError("Unknown preset");
+  Wilberforce.validate(p);
+  P.delta=p.delta;P.eps=p.eps;P.m=p.m;P.I=p.I;
+  z0=p.z0;th0=p.th0;
+  $("model-error").textContent="";
+  pushSliders();reset();syncLabels();
+}
+function bindSlider(id,obj,key){
+  $(id).addEventListener("input",()=>{
+    const value=Number($(id).value);
+    if(!Number.isFinite(value))return;
+    if(obj==="P"){
+      try{Wilberforce.validate({...P,[key]:value});}
+      catch(error){$("model-error").textContent=error.message;pushSliders();return;}
+      P[key]=value;reset();
+    } else if(key==="z0"){z0=value;reset();}
+      else if(key==="th0"){th0=value;reset();}
+      else if(key==="speed")speed=value;
+    $("model-error").textContent="";syncLabels();
+  });
+}
+
+// build preset menu
+PRESETS.forEach((p,i)=>{const o=document.createElement('option');o.value=i;o.textContent=p.n;$("preset").appendChild(o);});
+$("preset").value=11; // Set 12 periodic by default index? choose index 11 = Set 12
+$("preset").addEventListener('change',e=>loadPreset(+e.target.value));
+bindSlider("delta","P","delta"); bindSlider("eps","P","eps");
+bindSlider("m","P","m"); bindSlider("I","P","I");
+bindSlider("z0",null,"z0",reset); bindSlider("th0",null,"th0",reset); bindSlider("speed",null,"speed");
+$("play").addEventListener('click',()=>{running=!running;$("play").textContent=running?"Pause":"Play";});
+$("reset").addEventListener('click',reset);
+$("view").addEventListener('click',()=>{cam.az=0.6;cam.el=0.35;cam.zoom=1;});
+$("periodic").addEventListener('click',()=>{ th0=z0*Math.sqrt(P.m/P.I);
+  pushSliders(); reset(); syncLabels(); });
+
+// orbit + zoom
+let drag=false, px=0, py=0;
+scene.addEventListener('mousedown',e=>{drag=true;px=e.clientX;py=e.clientY;});
+window.addEventListener('mouseup',()=>drag=false);
+window.addEventListener('mousemove',e=>{ if(!drag)return;
+  cam.az+=(e.clientX-px)*0.008; cam.el+=(e.clientY-py)*0.008;
+  cam.el=Math.max(-1.2,Math.min(1.3,cam.el)); px=e.clientX; py=e.clientY;});
+scene.addEventListener('wheel',e=>{e.preventDefault();cam.zoom*=e.deltaY>0?0.94:1.06;
+  cam.zoom=Math.max(0.4,Math.min(3,cam.zoom));},{passive:false});
+
+// ---- resize ----------------------------------------------------------------
+function resize(){
+  const r=scene.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+  VW=Math.max(320,r.width); VH=Math.max(240,r.height);
+  scene.width=VW*dpr; scene.height=VH*dpr; sctx.setTransform(dpr,0,0,dpr,0,0);
+  ctxT=setupCanvas(pTime); ctxP=setupCanvas(pPhase); ctxE=setupCanvas(pEnergy);
+}
+window.addEventListener('resize',resize);
+
+// ---- main loop -------------------------------------------------------------
+let last=performance.now();
+function frame(now){
+  const dtReal=Math.min(0.05,(now-last)/1000); last=now;
+  if(running && !document.hidden){
+    const h=Math.min(0.004,0.05/w1());
+    const advance=Wilberforce.advanceClock(accumulatedTime,dtReal,speed,h);
+    accumulatedTime=advance.remainder;const steps=advance.steps;
+    for(let i=0;i<steps;i++){ S=rk4(S,h);
+      hist.t.push(S.t); hist.z.push(S.z); hist.th.push(S.th); hist.E.push(energy(S).tot);
+      if(hist.t.length>HMAX){hist.t.shift();hist.z.shift();hist.th.shift();hist.E.shift();}
+    }
+  }
+  drawScene(); drawPlots();
+  const e=energy(S);
+  $("st").textContent=S.t.toFixed(2)+" s";
+  $("sE").textContent=fmt(e.tot)+"  ("+((e.tot-E0)).toExponential(1)+")";
+  requestAnimationFrame(frame);
+}
+
+// ---- init ------------------------------------------------------------------
+function init(){ resize(); loadPreset(11); syncLabels(); requestAnimationFrame(frame); }
+init();
+</script>
+</body>
+</html>
