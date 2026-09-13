@@ -1,0 +1,45 @@
+name: Tests & Automated Checks
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  fortran-tests:
+    name: Fortran Physics Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install gfortran & cmake
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gfortran cmake
+
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Executables
+        run: cmake --build build
+
+      - name: Run Physics Regression Tests (ctest)
+        run: ctest --test-dir build --output-on-failure
+
+  js-tests:
+    name: JS Browser Model & Parity Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run JS Model & Fortran Parity Tests
+        run: node --test test/browser-model.test.mjs
